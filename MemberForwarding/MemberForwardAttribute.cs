@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
-using Microsoft.Win32.SafeHandles;
 
 namespace MemberForwarding
 {
