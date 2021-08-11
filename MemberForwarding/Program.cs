@@ -21,10 +21,10 @@ namespace MemberForwarding
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool PatchMethod(out string arg)
         {
-            arg = "aaa";
+            arg = "";
             return default;
         }
-        
+
         private int ForwardField = 1;
 
         [MemberForward("MemberForwarding.Program", "ForwardField")]

@@ -73,10 +73,10 @@ namespace MemberForwarding
                 throw new MissingMethodException(String.Format(
                     "Could not find a {0}static method that matches the parameters", !IsStatic ? "non-" : ""));
             if (!method.ReturnType.IsAssignableFrom(MemberMethod.ReturnType))
-                throw new MethodAccessException("Return type mismatch");
+                throw new TargetException("Return type mismatch");
             GetHarmonyInstance(HarmonyID).Patch(method,
                 transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "MethodTranspiler"),
-                finalizer: new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer"));
+                finalizer: method.GetMethodBody() != null ? new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer") : null);
         }
 
         private void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type DeclaringType)
@@ -98,7 +98,7 @@ namespace MemberForwarding
                     AccessorVariables.Add(key, CurrentVariable);
                 HarmonyInstance.Patch(Getter,
                     transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "GetterTranspiler"),
-                    finalizer: Finalizer);
+                    finalizer: Getter.GetMethodBody() != null ? Finalizer : null);
             }
 
             if (Setter != null)
@@ -108,7 +108,7 @@ namespace MemberForwarding
                     AccessorVariables.Add(key, CurrentVariable);
                 HarmonyInstance.Patch(Setter,
                     transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"),
-                    finalizer: Finalizer);
+                    finalizer: Setter.GetMethodBody() != null ? Finalizer : null);
             }
         }
 
