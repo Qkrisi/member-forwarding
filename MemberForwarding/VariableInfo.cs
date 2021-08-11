@@ -23,7 +23,7 @@ namespace MemberForwarding
             else if(Property != null)
                 Property.SetValue(instance, value, null);
         }
-        public VariableInfo(Type type, string name)
+        public VariableInfo(Type type, string name, bool Static = false)
         {
             string key = $"{type.FullName}.{name}";
             if (VariableCache.ContainsKey(key))
@@ -37,7 +37,10 @@ namespace MemberForwarding
                 Field = type.GetField(name, AccessTools.all);
                 Property = type.GetProperty(name, AccessTools.all);
                 if (Field == null && Property == null)
-                    throw new MissingMemberException(type.Name, name);
+                    throw new MissingMemberException($"Variable '{type.Name}.{name}' not found.");
+                if (Static && ((Field != null && !Field.IsStatic) ||
+                               (Property != null && !Property.GetAccessors(true)[0].IsStatic)))
+                    throw new MissingMemberException($"Static variable '{type.Name}.{name}' not found.");
                 VariableCache.Add(key, this);
             }
         }

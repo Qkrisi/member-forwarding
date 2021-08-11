@@ -5,19 +5,30 @@ namespace MemberForwarding
 {
     internal class Program
     {
-        private static bool ForwardMethod(string str)
+        private bool ForwardMethod(out string str)
         {
-            Console.WriteLine("Called forwarded method");
-            return str == "yes";
+            Console.WriteLine($"Called forwarded method: {str_inst}");
+            str = "yes";
+            return false;
+        }
+
+        private static Program Instance;
+
+        private string str_inst;
+
+        [MemberForward("MemberForwarding.Program", "ForwardMethod")]
+        [ObjectReference(typeof(Program), "Instance")]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool PatchMethod(out string arg)
+        {
+            arg = "aaa";
+            return default;
         }
         
-        [MemberForward("MemberForwarding.Program", "ForwardMethod")]
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool PatchMethod(string arg) => default;
-
-        private static int ForwardField = 1;
+        private int ForwardField = 1;
 
         [MemberForward("MemberForwarding.Program", "ForwardField")]
+        [ObjectReference(typeof(Program), "Instance")]
         private static int PatchProperty
         {
             [MethodImpl(MethodImplOptions.NoInlining)] get; 
@@ -28,12 +39,17 @@ namespace MemberForwarding
 
         public static void Main(string[] args)
         {
+            Instance = new Program
+            {
+                str_inst =  "d"
+            }; 
             //MemberForwardAttribute.DebugMode = true;
             MemberForwardAttribute.ForwardAll("demo");
-            Console.WriteLine(PatchMethod("yes"));
+            Console.WriteLine(PatchMethod(out string nice));
+            Console.WriteLine(nice);
             Console.WriteLine(PatchProperty);
             PatchProperty = 2;
-            Console.WriteLine(ForwardField);
+            Console.WriteLine(PatchProperty);
         }
     }
 }
