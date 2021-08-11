@@ -75,15 +75,13 @@ namespace MemberForwarding
                 finalizer: new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer"));
         }
 
-        public void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type declaringType)
+        public void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type DeclaringType)
         {
             if((Getter!=null && !Getter.IsStatic) || (Setter!=null && !Setter.IsStatic))
                 throw new MethodAccessException("Method to patch should be static!");
 
             Harmony HarmonyInstance = GetHarmonyInstance(HarmonyID);
             var CurrentVariable = OriginalVariable;
-
-            Type DeclaringType = declaringType;
 
             string key1 = $"{DeclaringType.Assembly.GetName().Name}:{DeclaringType.FullName}.";
 
@@ -222,10 +220,8 @@ namespace MemberForwarding
                         if(member is MethodInfo method)
                             attribute.Patch(ID, method);
                         if (member is PropertyInfo property)
-                        {
                             attribute.Patch(ID, property.GetGetMethod(true), property.GetSetMethod(true),
                                 property.DeclaringType);
-                        }
                     }
                 }
                 ForwardTypes(ID, type.GetNestedTypes(AccessTools.all));

@@ -3,12 +3,12 @@ using System;
 namespace MemberForwarding
 {
     [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = true)]
-    public class MemberSelectAttribute : Attribute
+    public abstract class MemberSelectAttribute : Attribute
     {
         public readonly Type type;
         public readonly string Name;
 
-        public MemberSelectAttribute(Type _type, string name)
+        protected MemberSelectAttribute(Type _type, string name)
         {
             name = name.Trim();
             if (_type == null)
