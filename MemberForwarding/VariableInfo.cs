@@ -5,25 +5,25 @@ using HarmonyLib;
 
 namespace MemberForwarding
 {
-    public class VariableInfo
+    internal class VariableInfo
     {
         private static Dictionary<string, VariableInfo> VariableCache = new Dictionary<string, VariableInfo>();
         
-        public readonly FieldInfo Field;
-        public readonly PropertyInfo Property;
+        private readonly FieldInfo Field;
+        private readonly PropertyInfo Property;
 
-        public Type VariableType => Field?.FieldType ?? Property?.PropertyType;
+        internal Type VariableType => Field?.FieldType ?? Property?.PropertyType;
 
-        public object GetValue(object instance) => Field?.GetValue(instance) ?? Property?.GetValue(instance, null);
+        internal object GetValue(object instance) => Field?.GetValue(instance) ?? Property?.GetValue(instance, null);
 
-        public void SetValue(object instance, object value)
+        internal void SetValue(object instance, object value)
         {
             if(Field != null)
                 Field.SetValue(instance, value);
             else if(Property != null)
                 Property.SetValue(instance, value, null);
         }
-        public VariableInfo(Type type, string name, bool Static = false)
+        internal VariableInfo(Type type, string name, bool Static = false)
         {
             string key = $"{type.FullName}.{name}";
             if (VariableCache.ContainsKey(key))

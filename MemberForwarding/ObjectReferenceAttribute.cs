@@ -5,7 +5,7 @@ namespace MemberForwarding
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property, AllowMultiple = false)]
     public class ObjectReferenceAttribute : MemberSelectAttribute
     {
-        public readonly VariableInfo Variable;
+        internal readonly VariableInfo Variable;
         
         public ObjectReferenceAttribute(Type _type, string name) :
             base(_type, name)

@@ -22,10 +22,14 @@ namespace MemberForwarding
 
         private static Dictionary<string, ObjectReferenceAttribute> ObjectReferences =
             new Dictionary<string, ObjectReferenceAttribute>();
-
+        
+#pragma warning disable 649
         internal static bool DebugMode;
+#pragma warning restore 649
 
         private ObjectReferenceAttribute ObjectReference;
+
+        private bool Forwarded;
 
         static CodeInstruction CreateCodeInstruction(OpCode code, object operand = null)
         {
@@ -57,7 +61,7 @@ namespace MemberForwarding
             return HarmonyInstances[HarmonyID];
         }
 
-        public void Patch(string HarmonyID, MethodInfo method)
+        private void Patch(string HarmonyID, MethodInfo method)
         {
             if (!method.IsStatic)
                 throw new MethodAccessException("Method to patch should be static!");
@@ -75,7 +79,7 @@ namespace MemberForwarding
                 finalizer: new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer"));
         }
 
-        public void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type DeclaringType)
+        private void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type DeclaringType)
         {
             if((Getter!=null && !Getter.IsStatic) || (Setter!=null && !Setter.IsStatic))
                 throw new MethodAccessException("Method to patch should be static!");
@@ -214,6 +218,8 @@ namespace MemberForwarding
                     if (attributes.Length > 0)
                     {
                         var attribute = attributes[0] as MemberForwardAttribute;
+                        if (attribute.Forwarded)
+                            continue;
                         var _ObjectReferences = member.GetCustomAttributes(typeof(ObjectReferenceAttribute), true);
                         if(_ObjectReferences.Length > 0)
                             attribute.ObjectReference = _ObjectReferences[0] as ObjectReferenceAttribute;
@@ -222,6 +228,7 @@ namespace MemberForwarding
                         if (member is PropertyInfo property)
                             attribute.Patch(ID, property.GetGetMethod(true), property.GetSetMethod(true),
                                 property.DeclaringType);
+                        attribute.Forwarded = true;
                     }
                 }
                 ForwardTypes(ID, type.GetNestedTypes(AccessTools.all));

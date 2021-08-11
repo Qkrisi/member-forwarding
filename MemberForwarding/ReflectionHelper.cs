@@ -5,11 +5,11 @@ using System.Collections.Generic;
 
 namespace MemberForwarding
 {
-    public static class ReflectionHelper
+    internal static class ReflectionHelper
     {
         private static Dictionary<string, Type> FoundTypes = new Dictionary<string, Type>();
         
-        public static Type FindType(string fullName, string assemblyName = null)
+        internal static Type FindType(string fullName, string assemblyName = null)
         {
             string key = $"{assemblyName}:{fullName}";
             if (FoundTypes.ContainsKey(key))
@@ -21,7 +21,7 @@ namespace MemberForwarding
             return type;
         }
         
-        public static IEnumerable<Type> GetSafeTypes(this Assembly assembly)
+        internal static IEnumerable<Type> GetSafeTypes(this Assembly assembly)
         {
             try
             {
