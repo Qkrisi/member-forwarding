@@ -68,7 +68,10 @@ namespace MemberForwarding
             UpdateParameters(method, out bool IsStatic);
             MethodInfo MemberMethod = OriginalMethod;
             if (MemberMethod == null)
+            {
+                
                 throw new MissingMethodException(type.Name, Name);
+            }
             if (MemberMethod.IsStatic != IsStatic)
                 throw new MissingMethodException(String.Format(
                     "Could not find a {0}static method that matches the parameters", !IsStatic ? "non-" : ""));
@@ -116,7 +119,7 @@ namespace MemberForwarding
 
         static string MethodToKey(MethodBase method)
         {
-            Type DeclaringType = method.DeclaringType;
+            Type DeclaringType = method.ReflectedType;
             return $"{DeclaringType.Assembly.GetName().Name}:{DeclaringType.FullName}.{method.Name}";
         }
 
@@ -127,6 +130,9 @@ namespace MemberForwarding
         }
 
         static ObjectReferenceAttribute GetReference(string key) => ObjectReferences[key];
+
+        static CodeInstruction Cast(Type _type) =>
+            CreateCodeInstruction(_type.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, _type);
         
         static IEnumerable<CodeInstruction> MethodTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase PatchMethod)
         {
@@ -157,13 +163,12 @@ namespace MemberForwarding
                     MethodInfo GetVariableMethod = typeof(VariableInfo).GetMethod("GetValue", AccessTools.all);
                     yield return CreateCodeInstruction(OpCodes.Ldnull);
                     yield return CreateCodeInstruction(OpCodes.Call, GetVariableMethod);
-                    yield return CreateCodeInstruction(reference.Variable.VariableType.IsValueType
-                        ? OpCodes.Unbox_Any
-                        : OpCodes.Castclass, reference.Variable.VariableType);
+                    yield return Cast(reference.Variable.VariableType);
                 }
                 else
                 {
                     yield return CreateCodeInstruction(OpCodes.Ldarg_0);
+                    yield return Cast(OriginalMethod.ReflectedType);
                     i++;
                 }
             }
@@ -185,7 +190,7 @@ namespace MemberForwarding
             yield return CreateCodeInstruction(OpCodes.Ldnull);
             yield return CreateCodeInstruction(OpCodes.Call, GetVariableMethod);
             Type ReturnType = AccessorVariables[key].VariableType;
-            yield return CreateCodeInstruction(ReturnType.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, ReturnType);
+            yield return Cast(ReturnType);
             yield return CreateCodeInstruction(OpCodes.Ret);
         }
 
@@ -208,7 +213,7 @@ namespace MemberForwarding
 
         static Exception Finalizer(Exception __exception) => __exception is OutOfMemoryException ? new InvalidCastException() : __exception;
 
-        public static void ForwardTypes(string ID, params Type[] types)
+        internal static void ForwardTypes(string ID, params Type[] types)
         {
             foreach (Type type in types)
             {
@@ -227,19 +232,14 @@ namespace MemberForwarding
                             attribute.Patch(ID, method);
                         if (member is PropertyInfo property)
                             attribute.Patch(ID, property.GetGetMethod(true), property.GetSetMethod(true),
-                                property.DeclaringType);
+                                property.ReflectedType);
                         attribute.Forwarded = true;
                     }
                 }
                 ForwardTypes(ID, type.GetNestedTypes(AccessTools.all));
             }
         }
-
-        public static void ForwardAll(string ID)
-        {
-            ForwardTypes(ID, Assembly.GetExecutingAssembly().GetSafeTypes().ToArray());
-        }
-
+        
         public MemberForwardAttribute(Type _type, string name) :
             base(_type, name)
         {

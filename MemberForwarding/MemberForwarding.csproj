@@ -43,6 +43,7 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="MemberForwardAttribute.cs" />
+        <Compile Include="MemberForwardControls.cs" />
         <Compile Include="MemberSelectAttribute.cs" />
         <Compile Include="ObjectReferenceAttribute.cs" />
         <Compile Include="Program.cs" />
