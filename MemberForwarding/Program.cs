@@ -45,6 +45,7 @@ namespace MemberForwarding
             Console.WriteLine(PatchProperty);
             PatchProperty = 2;
             Console.WriteLine(PatchProperty);
+            Console.WriteLine(Instance.ForwardField);
         }
     }
 }

@@ -20,6 +20,9 @@ namespace MemberForwarding
         private static Dictionary<string, VariableInfo> AccessorVariables =
             new Dictionary<string, VariableInfo>();
 
+        private static Dictionary<string, MemberForwardAttribute> AccessorAttributes =
+            new Dictionary<string, MemberForwardAttribute>();
+
         private static Dictionary<string, ObjectReferenceAttribute> ObjectReferences =
             new Dictionary<string, ObjectReferenceAttribute>();
         
@@ -39,18 +42,32 @@ namespace MemberForwarding
             return instruction;
         }
 
-        private void UpdateParameters(MethodBase method, out bool IsStatic)
+        private bool IsStatic(MethodBase method, out bool Skip)
         {
             var parameters = method.GetParameters();
             if (ObjectReference != null)
-                IsStatic = false;
-            else if (parameters.Length > 0 && parameters[0].ParameterType.IsAssignableFrom(type) &&
-                    parameters[0].Name == "__instance")
             {
-                IsStatic = false;
-                parameters = parameters.Skip(1).ToArray();
+                Skip = false;
+                return false;
             }
-            else IsStatic = true;
+            if (parameters.Length > 0 && parameters[0].ParameterType.IsAssignableFrom(type) &&
+                parameters[0].Name == "__instance")
+            {
+                Skip = true;
+                return false;
+            }
+            Skip = false;
+            return true;
+        }
+
+        private bool IsStatic(MethodBase method) => IsStatic(method, out bool _);
+
+        private void UpdateParameters(MethodBase method, out bool _IsStatic)
+        {
+            var parameters = method.GetParameters();
+            _IsStatic = IsStatic(method, out bool Skip);
+            if(Skip)
+                parameters = parameters.Skip(1).ToArray();
             Overloads = parameters.Select(p => p.ParameterType).ToArray();
         }
 
@@ -65,16 +82,16 @@ namespace MemberForwarding
         {
             if (!method.IsStatic)
                 throw new MethodAccessException("Method to patch should be static!");
-            UpdateParameters(method, out bool IsStatic);
+            UpdateParameters(method, out bool _IsStatic);
             MethodInfo MemberMethod = OriginalMethod;
             if (MemberMethod == null)
             {
                 
                 throw new MissingMethodException(type.Name, Name);
             }
-            if (MemberMethod.IsStatic != IsStatic)
+            if (MemberMethod.IsStatic != _IsStatic)
                 throw new MissingMethodException(String.Format(
-                    "Could not find a {0}static method that matches the parameters", !IsStatic ? "non-" : ""));
+                    "Could not find a {0}static method that matches the parameters", !_IsStatic ? "non-" : ""));
             if (!method.ReturnType.IsAssignableFrom(MemberMethod.ReturnType))
                 throw new TargetException("Return type mismatch");
             GetHarmonyInstance(HarmonyID).Patch(method,
@@ -99,6 +116,10 @@ namespace MemberForwarding
                 string key = $"{key1}{Getter.Name}";
                 if(!AccessorVariables.ContainsKey(key))
                     AccessorVariables.Add(key, CurrentVariable);
+                if(!AccessorAttributes.ContainsKey(key))
+                    AccessorAttributes.Add(key, this);
+                if(ObjectReference != null && !ObjectReferences.ContainsKey(key))
+                    ObjectReferences.Add(key, ObjectReference);
                 HarmonyInstance.Patch(Getter,
                     transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "GetterTranspiler"),
                     finalizer: Getter.GetMethodBody() != null ? Finalizer : null);
@@ -109,13 +130,28 @@ namespace MemberForwarding
                 string key = $"{key1}{Setter.Name}";
                 if(!AccessorVariables.ContainsKey(key))
                     AccessorVariables.Add(key, CurrentVariable);
+                if(!AccessorAttributes.ContainsKey(key))
+                    AccessorAttributes.Add(key, this);
+                if(ObjectReference != null && !ObjectReferences.ContainsKey(key))
+                    ObjectReferences.Add(key, ObjectReference);
                 HarmonyInstance.Patch(Setter,
                     transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"),
                     finalizer: Setter.GetMethodBody() != null ? Finalizer : null);
             }
         }
 
-        static MemberForwardAttribute GetAttribute(MethodBase PatchMethod) => PatchMethod.GetCustomAttributes(typeof(MemberForwardAttribute), true)[0] as MemberForwardAttribute;
+        static MemberForwardAttribute GetAttribute(MethodBase PatchMethod)
+        {
+            try
+            {
+                return PatchMethod.GetCustomAttributes(typeof(MemberForwardAttribute), true)[0] as
+                    MemberForwardAttribute;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                return AccessorAttributes[MethodToKey(PatchMethod)];
+            }
+        }
 
         static string MethodToKey(MethodBase method)
         {
@@ -129,48 +165,69 @@ namespace MemberForwarding
             return CreateCodeInstruction(OpCodes.Ldstr, key);
         }
 
-        static ObjectReferenceAttribute GetReference(string key) => ObjectReferences[key];
-
-        static CodeInstruction Cast(Type _type) =>
-            CreateCodeInstruction(_type.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, _type);
-        
-        static IEnumerable<CodeInstruction> MethodTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase PatchMethod)
+        static CodeInstruction GetAttributes(MethodBase PatchMethod, out MemberForwardAttribute ForwardAttribute, out string key)
         {
             MemberForwardAttribute attribute = GetAttribute(PatchMethod);
             var _ObjectReferences =
                 PatchMethod.GetCustomAttributes(typeof(ObjectReferenceAttribute), true);
-            string key = MethodToKey(PatchMethod);
-            ObjectReferenceAttribute reference = null;
+            key = MethodToKey(PatchMethod);
             if (_ObjectReferences.Length > 0)
             {
-                reference = _ObjectReferences[0] as ObjectReferenceAttribute;
+                var reference = _ObjectReferences[0] as ObjectReferenceAttribute;
                 attribute.ObjectReference = reference;
                 if(!ObjectReferences.ContainsKey(key))
                     ObjectReferences.Add(key, reference);
             }
-            attribute.UpdateParameters(PatchMethod, out bool IsStatic);
+            ForwardAttribute = attribute;
+            return CreateCodeInstruction(OpCodes.Ldstr, key);
+        }
+
+        static ObjectReferenceAttribute GetReference(string key) => ObjectReferences[key];
+
+        static CodeInstruction Unbox(Type _type) =>
+            CreateCodeInstruction(_type.IsValueType ? OpCodes.Unbox_Any : OpCodes.Castclass, _type);
+
+        static CodeInstruction Box(Type _type) => _type.IsValueType
+            ? CreateCodeInstruction(OpCodes.Box, _type)
+            : CreateCodeInstruction(OpCodes.Castclass, typeof(object));
+
+        static IEnumerable<CodeInstruction> LoadReference(ObjectReferenceAttribute ObjectReference, string key, Type ReflectedType, out int ParameterIndex, bool unbox = false)
+        {
+            List<CodeInstruction> codeInstructions = new List<CodeInstruction>();
+            if (ObjectReference != null)
+            {
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Ldstr, key));
+                MethodInfo GetReferenceMethod = typeof(MemberForwardAttribute).GetMethod("GetReference", AccessTools.all);
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Call, GetReferenceMethod));
+                FieldInfo VariableField = typeof(ObjectReferenceAttribute).GetField("Variable", AccessTools.all);
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Ldfld, VariableField));
+                MethodInfo GetVariableMethod = typeof(VariableInfo).GetMethod("GetValue", AccessTools.all);
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Ldnull));
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Call, GetVariableMethod));
+                if(unbox)
+                    codeInstructions.Add(Unbox(ObjectReference.Variable.VariableType));
+                ParameterIndex = 0;
+            }
+            else
+            {
+                codeInstructions.Add(CreateCodeInstruction(OpCodes.Ldarg_0));
+                codeInstructions.Add(unbox ? Unbox(ReflectedType) : Box(ReflectedType));
+                ParameterIndex = 1;
+            }
+            return codeInstructions;
+        }
+
+        static IEnumerable<CodeInstruction> MethodTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase PatchMethod)
+        {
+            GetAttributes(PatchMethod, out MemberForwardAttribute attribute, out string key);
+            attribute.UpdateParameters(PatchMethod, out bool _IsStatic);
             MethodInfo OriginalMethod = attribute.OriginalMethod;
             int i = 0;
-            if (!IsStatic)
+            if (!_IsStatic)
             {
-                if (attribute.ObjectReference != null)
-                {
-                    yield return CreateCodeInstruction(OpCodes.Ldstr, key);
-                    MethodInfo GetReferenceMethod = typeof(MemberForwardAttribute).GetMethod("GetReference", AccessTools.all);
-                    yield return CreateCodeInstruction(OpCodes.Call, GetReferenceMethod);
-                    FieldInfo VariableField = typeof(ObjectReferenceAttribute).GetField("Variable", AccessTools.all);
-                    yield return CreateCodeInstruction(OpCodes.Ldfld, VariableField);
-                    MethodInfo GetVariableMethod = typeof(VariableInfo).GetMethod("GetValue", AccessTools.all);
-                    yield return CreateCodeInstruction(OpCodes.Ldnull);
-                    yield return CreateCodeInstruction(OpCodes.Call, GetVariableMethod);
-                    yield return Cast(reference.Variable.VariableType);
-                }
-                else
-                {
-                    yield return CreateCodeInstruction(OpCodes.Ldarg_0);
-                    yield return Cast(OriginalMethod.ReflectedType);
-                    i++;
-                }
+                foreach (var instruction in LoadReference(attribute.ObjectReference, key, OriginalMethod.ReflectedType,
+                    out i, true))
+                    yield return instruction;
             }
             foreach (var parameter in OriginalMethod.GetParameters())
                 yield return CreateCodeInstruction(OpCodes.Ldarg, i++);
@@ -183,30 +240,40 @@ namespace MemberForwarding
         static IEnumerable<CodeInstruction> GetterTranspiler(IEnumerable<CodeInstruction> instructions,
             MethodBase OriginalMethod)
         {
-            yield return MethodToKey(OriginalMethod, out string key);
+            yield return GetAttributes(OriginalMethod, out MemberForwardAttribute attribute, out string key);
             MethodInfo GetValueMethod = typeof(MemberForwardAttribute).GetMethod("GetValue", AccessTools.all);
             yield return CreateCodeInstruction(OpCodes.Call, GetValueMethod);
             MethodInfo GetVariableMethod = typeof(VariableInfo).GetMethod("GetValue", AccessTools.all);
-            yield return CreateCodeInstruction(OpCodes.Ldnull);
+            if (!attribute.IsStatic(OriginalMethod))
+            {
+                foreach (var instruction in LoadReference(attribute.ObjectReference, key, OriginalMethod.ReflectedType,
+                    out int _))
+                    yield return instruction;
+            }
+            else yield return CreateCodeInstruction(OpCodes.Ldnull);
             yield return CreateCodeInstruction(OpCodes.Call, GetVariableMethod);
             Type ReturnType = AccessorVariables[key].VariableType;
-            yield return Cast(ReturnType);
+            yield return Unbox(ReturnType);
             yield return CreateCodeInstruction(OpCodes.Ret);
         }
 
         static IEnumerable<CodeInstruction> SetterTranspiler(IEnumerable<CodeInstruction> instructions,
             MethodBase OriginalMethod)
         {
-            yield return MethodToKey(OriginalMethod, out string key);
+            yield return GetAttributes(OriginalMethod, out MemberForwardAttribute attribute, out string key);
             MethodInfo GetValueMethod = typeof(MemberForwardAttribute).GetMethod("GetValue", AccessTools.all);
             yield return CreateCodeInstruction(OpCodes.Call, GetValueMethod);
             MethodInfo SetVariableMethod = typeof(VariableInfo).GetMethod("SetValue", AccessTools.all);
-            yield return CreateCodeInstruction(OpCodes.Ldnull);
-            yield return CreateCodeInstruction(OpCodes.Ldarg_0);
-            Type VariableType = AccessorVariables[key].VariableType;
-            if (VariableType.IsValueType)
-                yield return CreateCodeInstruction(OpCodes.Box, VariableType);
-            else yield return CreateCodeInstruction(OpCodes.Castclass, typeof(object));
+            int i = 0;
+            if (!attribute.IsStatic(OriginalMethod))
+            {
+                foreach (var instruction in LoadReference(attribute.ObjectReference, key, OriginalMethod.ReflectedType,
+                    out i))
+                    yield return instruction;
+            }
+            else yield return CreateCodeInstruction(OpCodes.Ldnull);
+            yield return CreateCodeInstruction(OpCodes.Ldarg, i);
+            yield return Box(AccessorVariables[key].VariableType);
             yield return CreateCodeInstruction(OpCodes.Call, SetVariableMethod);
             yield return CreateCodeInstruction(OpCodes.Ret);
         }
