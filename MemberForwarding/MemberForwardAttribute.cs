@@ -312,7 +312,7 @@ namespace MemberForwarding
             }
             else yield return CreateCodeInstruction(OpCodes.Ldnull);
             yield return CreateCodeInstruction(OpCodes.Ldarg, i);
-            yield return Box(AccessorVariables[key].VariableType);
+            yield return Box(OriginalMethod.GetParameters()[i].ParameterType);
             yield return CreateCodeInstruction(OpCodes.Call, SetVariableMethod);
             yield return CreateCodeInstruction(OpCodes.Ret);
         }
