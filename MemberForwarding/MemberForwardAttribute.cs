@@ -41,8 +41,10 @@ namespace MemberForwarding
                 Console.WriteLine(instruction.ToString());
             return instruction;
         }
+        
+        static bool MatchingHierarchy(Type type1, Type type2) => type1.IsAssignableFrom(type2) || type2.IsAssignableFrom(type1);
 
-        private bool IsStatic(MethodBase method, out bool Skip)
+        private bool IsStatic(MethodBase method, out bool Skip, bool StrictName = false)
         {
             var parameters = method.GetParameters();
             if (ObjectReference != null)
@@ -50,8 +52,8 @@ namespace MemberForwarding
                 Skip = false;
                 return false;
             }
-            if (parameters.Length > 0 && parameters[0].ParameterType.IsAssignableFrom(type) &&
-                parameters[0].Name == "__instance")
+            if (parameters.Length > 0 && MatchingHierarchy(parameters[0].ParameterType, type) &&
+                (!StrictName || parameters[0].Name == "__instance"))
             {
                 Skip = true;
                 return false;
@@ -60,12 +62,12 @@ namespace MemberForwarding
             return true;
         }
 
-        private bool IsStatic(MethodBase method) => IsStatic(method, out bool _);
+        private bool IsStatic(MethodBase method, bool StrictName = false) => IsStatic(method, out bool _, StrictName);
 
-        private void UpdateParameters(MethodBase method, out bool _IsStatic)
+        private void UpdateParameters(MethodBase method, out bool _IsStatic, bool StrictName = false)
         {
             var parameters = method.GetParameters();
-            _IsStatic = IsStatic(method, out bool Skip);
+            _IsStatic = IsStatic(method, out bool Skip, StrictName);
             if(Skip)
                 parameters = parameters.Skip(1).ToArray();
             Overloads = parameters.Select(p => p.ParameterType).ToArray();
@@ -82,11 +84,48 @@ namespace MemberForwarding
         {
             if (!method.IsStatic)
                 throw new MethodAccessException("Method to patch should be static!");
-            UpdateParameters(method, out bool _IsStatic);
+            UpdateParameters(method, out bool _IsStatic, true);
             MethodInfo MemberMethod = OriginalMethod;
             if (MemberMethod == null)
             {
-                
+                try
+                {
+                    var variable = new VariableInfo(type, Name);
+                    if (variable.IsStatic)
+                        throw new MissingVariableException($"Instance variable '{type.Name}.{Name}' not found", true);
+                    var parameters = method.GetParameters();
+                    switch (parameters.Length)
+                    {
+                        case 1:
+                            if (!MatchingHierarchy(parameters[0].ParameterType, type))
+                                throw new MethodAccessException(
+                                    "The type of the instance should be in the hierarchy of the destination type");
+                            if (!method.ReturnType.IsAssignableFrom(variable.VariableType))
+                                throw new MethodAccessException(
+                                    "The return type of a getter should be assignable from the type of the destination variable");
+                            Patch(HarmonyID, method, null, method.ReflectedType);
+                            return;
+                        case 2:
+                            if (!MatchingHierarchy(parameters[0].ParameterType, type))
+                                throw new MethodAccessException(
+                                    "The type of the instance should be in the hierarchy of the destination type");
+                            if (!MatchingHierarchy(parameters[1].ParameterType, variable.VariableType))
+                                throw new MethodAccessException(
+                                    "The type of the value parameter should be in the same hierarchy as the destination variable type");
+                            if (method.ReturnType != typeof(void))
+                                throw new MethodAccessException("The return type of a setter should be void");
+                            Patch(HarmonyID, null, method, method.ReflectedType);
+                            return;
+                        default:
+                            throw new MethodAccessException(
+                                "A method pointing to a variable should have 1 (getter) or 2 (setter) parameters");
+                    }
+                }
+                catch (MissingVariableException e)
+                {
+                    if (e.Rethrow)
+                        throw;
+                }
                 throw new MissingMethodException(type.Name, Name);
             }
             if (MemberMethod.IsStatic != _IsStatic)
@@ -220,7 +259,7 @@ namespace MemberForwarding
         static IEnumerable<CodeInstruction> MethodTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase PatchMethod)
         {
             GetAttributes(PatchMethod, out MemberForwardAttribute attribute, out string key);
-            attribute.UpdateParameters(PatchMethod, out bool _IsStatic);
+            attribute.UpdateParameters(PatchMethod, out bool _IsStatic, true);
             MethodInfo OriginalMethod = attribute.OriginalMethod;
             int i = 0;
             if (!_IsStatic)
@@ -280,8 +319,18 @@ namespace MemberForwarding
 
         static Exception Finalizer(Exception __exception) => __exception is OutOfMemoryException ? new InvalidCastException() : __exception;
 
-        internal static void ForwardTypes(string ID, params Type[] types)
+        internal static void ForwardTypes(string ID, Type[] types)
         {
+            try
+            {
+                var _ = AccessTools.all;
+            }
+            catch (DllNotFoundException)
+            {
+                throw new DllNotFoundException(
+                    "Please install Harmony for .NET 3.5 in order to use member forwarding! (https://github.com/pardeike/Harmony/releases)");
+            }
+            bool DefaultDebug = DebugMode;
             foreach (Type type in types)
             {
                 foreach (var member in type.GetMembers(AccessTools.all))
@@ -289,6 +338,8 @@ namespace MemberForwarding
                     var attributes = member.GetCustomAttributes(typeof(MemberForwardAttribute), true);
                     if (attributes.Length > 0)
                     {
+                        if (!DebugMode && member.GetCustomAttributes(typeof(DebugAttribute), true).Length > 0)
+                            DebugMode = true;
                         var attribute = attributes[0] as MemberForwardAttribute;
                         if (attribute.Forwarded)
                             continue;
@@ -301,6 +352,7 @@ namespace MemberForwarding
                             attribute.Patch(ID, property.GetGetMethod(true), property.GetSetMethod(true),
                                 property.ReflectedType);
                         attribute.Forwarded = true;
+                        DebugMode = DefaultDebug;
                     }
                 }
                 ForwardTypes(ID, type.GetNestedTypes(AccessTools.all));

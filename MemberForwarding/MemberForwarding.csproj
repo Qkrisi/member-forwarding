@@ -42,6 +42,7 @@
         <Reference Include="System.Xml" />
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="DebugAttribute.cs" />
         <Compile Include="MemberForwardAttribute.cs" />
         <Compile Include="MemberForwardControls.cs" />
         <Compile Include="MemberSelectAttribute.cs" />

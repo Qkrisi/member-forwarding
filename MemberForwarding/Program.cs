@@ -16,9 +16,9 @@ namespace MemberForwarding
 
         private string str_inst;
 
-        [MemberForward("MemberForwarding.Program", "ForwardMethod")]
+        /*[MemberForward("MemberForwarding.Program", "ForwardMethod")]
         [MethodImpl(MethodImplOptions.InternalCall)]
-        private static extern bool PatchMethod(object __instance, out string arg);
+        private static extern bool PatchMethod(object __instance, out string arg);*/
 
         private int ForwardField = 1;
 
@@ -29,6 +29,15 @@ namespace MemberForwarding
             [MethodImpl(MethodImplOptions.NoInlining)] get; 
             [MethodImpl(MethodImplOptions.NoInlining)] set;
         }
+
+        [MemberForward(typeof(Program), "ForwardField")]
+        [Debug]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static int FieldMethod(Program instance) => default;
+
+        [MemberForward(typeof(Program), "ForwardField")]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void FieldSetMethod(Program instance, int value){}
         
         
 
@@ -40,12 +49,15 @@ namespace MemberForwarding
             }; 
             //MemberForwardAttribute.DebugMode = true;
             MemberForwardControls.ForwardAll("demo");
-            Console.WriteLine(PatchMethod(Instance, out string nice));
-            Console.WriteLine(nice);
+            //Console.WriteLine(PatchMethod(Instance, out string nice));
+            //Console.WriteLine(nice);
             Console.WriteLine(PatchProperty);
             PatchProperty = 2;
             Console.WriteLine(PatchProperty);
             Console.WriteLine(Instance.ForwardField);
+            Console.WriteLine(FieldMethod(Instance));
+            FieldSetMethod(Instance, 3);
+            Console.Write(FieldMethod(Instance));
         }
     }
 }

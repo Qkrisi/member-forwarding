@@ -5,6 +5,16 @@ using HarmonyLib;
 
 namespace MemberForwarding
 {
+    internal class MissingVariableException : MissingMemberException
+    {
+        internal readonly bool Rethrow;
+        
+        internal MissingVariableException(string message, bool rethrow = false) : base(message)
+        {
+            Rethrow = rethrow;
+        }
+    }
+    
     internal class VariableInfo
     {
         private static Dictionary<string, VariableInfo> VariableCache = new Dictionary<string, VariableInfo>();
@@ -12,7 +22,9 @@ namespace MemberForwarding
         private readonly FieldInfo Field;
         private readonly PropertyInfo Property;
 
-        internal Type VariableType => Field?.FieldType ?? Property?.PropertyType;
+        internal Type VariableType => Field?.FieldType ?? Property.PropertyType;
+
+        internal bool IsStatic => Field?.IsStatic ?? Property.GetAccessors(true)[0].IsStatic;
 
         internal object GetValue(object instance) => Field?.GetValue(instance) ?? Property?.GetValue(instance, null);
 
@@ -37,10 +49,9 @@ namespace MemberForwarding
                 Field = type.GetField(name, AccessTools.all);
                 Property = type.GetProperty(name, AccessTools.all);
                 if (Field == null && Property == null)
-                    throw new MissingMemberException($"Variable '{type.Name}.{name}' not found.");
-                if (Static && ((Field != null && !Field.IsStatic) ||
-                               (Property != null && !Property.GetAccessors(true)[0].IsStatic)))
-                    throw new MissingMemberException($"Static variable '{type.Name}.{name}' not found.");
+                    throw new MissingVariableException($"Variable '{type.Name}.{name}' not found.");
+                if (Static && !IsStatic)
+                    throw new MissingVariableException($"Static variable '{type.Name}.{name}' not found.");
                 VariableCache.Add(key, this);
             }
         }
