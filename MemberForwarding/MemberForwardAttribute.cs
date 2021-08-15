@@ -240,7 +240,7 @@ namespace MemberForwarding
             ? CreateCodeInstruction(OpCodes.Box, _type)
             : CreateCodeInstruction(OpCodes.Castclass, typeof(object));
 
-        static IEnumerable<CodeInstruction> LoadReference(ObjectReferenceAttribute ObjectReference, string key, Type ReflectedType, out int ParameterIndex, bool unbox = false, Type ReturnType = null)
+        static IEnumerable<CodeInstruction> LoadReference(ObjectReferenceAttribute ObjectReference, string key, Type ReflectedType, out int ParameterIndex, bool unbox = false)
         {
             List<CodeInstruction> codeInstructions = new List<CodeInstruction>();
             if (ObjectReference != null)
@@ -339,7 +339,7 @@ namespace MemberForwarding
             catch (DllNotFoundException)
             {
                 throw new DllNotFoundException(
-                    "Please install Harmony for .NET 3.5 in order to use member forwarding! (https://github.com/pardeike/Harmony/releases)");
+                    "Please install Harmony in order to use member forwarding! (https://github.com/pardeike/Harmony/releases)");
             }
             bool DefaultDebug = DebugMode;
             foreach (Type type in types)
