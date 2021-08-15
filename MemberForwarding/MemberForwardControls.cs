@@ -20,8 +20,17 @@ namespace MemberForwarding
             }
         }
 
+        /// <summary>
+        /// Forward members of the specified types
+        /// </summary>
+        /// <param name="HarmonyID">Harmony ID used for patching</param>
+        /// <param name="types">Types to forward the members of</param>
         public static void ForwardTypes(string HarmonyID, params Type[] types) => TryExecuteForwards(() => MemberForwardAttribute.ForwardTypes(HarmonyID, types));
 
+        /// <summary>
+        /// Forward members of all of the types of the executing assembly
+        /// </summary>
+        /// <param name="HarmonyID">Harmony ID used for patching</param>
         public static void ForwardAll(string HarmonyID) =>
             TryExecuteForwards(() =>
                 ForwardTypes(HarmonyID,

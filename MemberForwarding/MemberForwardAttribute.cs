@@ -365,11 +365,22 @@ namespace MemberForwarding
             }
         }
         
+        /// <summary>
+        /// Initialize a new member forward
+        /// </summary>
+        /// <param name="_type">Type to forward the member to</param>
+        /// <param name="name">Name of the member to forward to</param>
         public MemberForwardAttribute(Type _type, string name) :
             base(_type, name)
         {
         }
 
+        /// <summary>
+        /// Initialize a new member forward
+        /// </summary>
+        /// <param name="FullTypeName">Full name of the type to forward the member to (Namespace.TypeName)</param>
+        /// <param name="name">Name of the member to forward to</param>
+        /// <param name="AssemblyName">Name of the assembly to search the type in (leave empty or null to search in any assembly)</param>
         public MemberForwardAttribute(string FullTypeName, string name, string AssemblyName = null) :
             this(ReflectionHelper.FindType(FullTypeName, AssemblyName), name)
         {
