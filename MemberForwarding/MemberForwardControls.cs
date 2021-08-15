@@ -15,7 +15,7 @@ namespace MemberForwarding
             }
             catch (TypeLoadException e)
             {
-                throw e.Message.Contains("Could not load type 'MemberForwarding.MemberForwardAttribute'") ? new DllNotFoundException(
+                throw e.Message.Contains($"Could not load type '{nameof(MemberForwarding)}.{nameof(MemberForwardAttribute)}'") ? new DllNotFoundException(
                     "Failed to load member forwarding. Please make sure Harmony is installed! (https://github.com/pardeike/Harmony/releases)") : e;
             }
         }
