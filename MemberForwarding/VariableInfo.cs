@@ -24,7 +24,7 @@ namespace MemberForwarding
 
         internal Type VariableType => Field?.FieldType ?? Property.PropertyType;
 
-        internal bool IsStatic => Field?.IsStatic ?? Property.GetAccessors(true)[0].IsStatic;
+        internal bool IsStatic => Field?.IsStatic ?? Property.IsStatic();
 
         internal object GetValue(object instance) => Field?.GetValue(instance) ?? Property?.GetValue(instance, null);
 

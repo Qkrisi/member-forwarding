@@ -26,6 +26,8 @@ namespace MemberForwarding
         private static Dictionary<string, ObjectReferenceAttribute> ObjectReferences =
             new Dictionary<string, ObjectReferenceAttribute>();
         
+        internal static Action<string> LogLine = Console.WriteLine;
+        
 #pragma warning disable 649
         internal static bool DebugMode;
 #pragma warning restore 649
@@ -38,7 +40,7 @@ namespace MemberForwarding
         {
             var instruction = new CodeInstruction(code, operand);
             if(DebugMode)
-                Console.WriteLine(instruction.ToString());
+                LogLine(instruction.ToString());
             return instruction;
         }
         
@@ -73,17 +75,31 @@ namespace MemberForwarding
             Overloads = parameters.Select(p => p.ParameterType).ToArray();
         }
 
-        private Harmony GetHarmonyInstance(string HarmonyID)
+        private static Harmony GetHarmonyInstance(string HarmonyID)
         {
             if(!HarmonyInstances.ContainsKey(HarmonyID))
                 HarmonyInstances.Add(HarmonyID, new Harmony(HarmonyID));
             return HarmonyInstances[HarmonyID];
         }
 
+        static void TryPatch(string HarmonyID, MethodInfo method, HarmonyMethod transpiler)
+        {
+            Harmony HarmonyInstance = GetHarmonyInstance(HarmonyID);
+            try
+            {
+                HarmonyInstance.Patch(method, transpiler: transpiler,
+                    finalizer: method.GetMethodBody() != null ? new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer") : null);
+            }
+            catch (FormatException)
+            {
+                HarmonyInstance.Patch(method, transpiler: transpiler);
+            }
+        }
+
         private void Patch(string HarmonyID, MethodInfo method)
         {
             if (!method.IsStatic)
-                throw new MethodAccessException("Method to patch should be static!");
+                throw new MethodAccessException("Method to forward should be static!");
             UpdateParameters(method, out bool _IsStatic, true);
             MethodInfo MemberMethod = OriginalMethod;
             if (MemberMethod == null)
@@ -126,29 +142,25 @@ namespace MemberForwarding
                     if (e.Rethrow)
                         throw;
                 }
-                throw new MissingMethodException(type.Name, Name);
+                throw new MissingMethodException($"Method '{type.Name}.{Name}' could not be found with the specified overloads");
             }
             if (MemberMethod.IsStatic != _IsStatic)
                 throw new MissingMethodException(String.Format(
                     "Could not find a {0}static method that matches the parameters", !_IsStatic ? "non-" : ""));
             if (!method.ReturnType.IsAssignableFrom(MemberMethod.ReturnType))
                 throw new TargetException("Return type mismatch");
-            GetHarmonyInstance(HarmonyID).Patch(method,
-                transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "MethodTranspiler"),
-                finalizer: method.GetMethodBody() != null ? new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer") : null);
+            TryPatch(HarmonyID, method, new HarmonyMethod(typeof(MemberForwardAttribute), "MethodTranspiler"));
         }
 
         private void Patch(string HarmonyID, MethodInfo Getter, MethodInfo Setter, Type DeclaringType)
         {
             if((Getter!=null && !Getter.IsStatic) || (Setter!=null && !Setter.IsStatic))
-                throw new MethodAccessException("Method to patch should be static!");
+                throw new MethodAccessException("Property to forward should be static!");
 
             Harmony HarmonyInstance = GetHarmonyInstance(HarmonyID);
             var CurrentVariable = OriginalVariable;
 
             string key1 = $"{DeclaringType.Assembly.GetName().Name}:{DeclaringType.FullName}.";
-
-            var Finalizer = new HarmonyMethod(typeof(MemberForwardAttribute), "Finalizer");
 
             if (Getter != null)
             {
@@ -161,9 +173,7 @@ namespace MemberForwarding
                     AccessorAttributes.Add(key, this);
                 if(ObjectReference != null && !ObjectReferences.ContainsKey(key))
                     ObjectReferences.Add(key, ObjectReference);
-                HarmonyInstance.Patch(Getter,
-                    transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "GetterTranspiler"),
-                    finalizer: Getter.GetMethodBody() != null ? Finalizer : null);
+                TryPatch(HarmonyID, Getter, new HarmonyMethod(typeof(MemberForwardAttribute), "GetterTranspiler"));
             }
 
             if (Setter != null)
@@ -175,9 +185,7 @@ namespace MemberForwarding
                     AccessorAttributes.Add(key, this);
                 if(ObjectReference != null && !ObjectReferences.ContainsKey(key))
                     ObjectReferences.Add(key, ObjectReference);
-                HarmonyInstance.Patch(Setter,
-                    transpiler: new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"),
-                    finalizer: Setter.GetMethodBody() != null ? Finalizer : null);
+                TryPatch(HarmonyID, Getter, new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"));
             }
         }
 
@@ -232,7 +240,7 @@ namespace MemberForwarding
             ? CreateCodeInstruction(OpCodes.Box, _type)
             : CreateCodeInstruction(OpCodes.Castclass, typeof(object));
 
-        static IEnumerable<CodeInstruction> LoadReference(ObjectReferenceAttribute ObjectReference, string key, Type ReflectedType, out int ParameterIndex, bool unbox = false)
+        static IEnumerable<CodeInstruction> LoadReference(ObjectReferenceAttribute ObjectReference, string key, Type ReflectedType, out int ParameterIndex, bool unbox = false, Type ReturnType = null)
         {
             List<CodeInstruction> codeInstructions = new List<CodeInstruction>();
             if (ObjectReference != null)
@@ -270,9 +278,10 @@ namespace MemberForwarding
                     out i, true))
                     yield return instruction;
             }
-            foreach (var parameter in OriginalMethod.GetParameters())
+            var parameters = OriginalMethod.GetParameters();
+            foreach (var parameter in parameters)
                 yield return CreateCodeInstruction(OpCodes.Ldarg, i++);
-            yield return CreateCodeInstruction(OpCodes.Callvirt, OriginalMethod);
+            yield return CreateCodeInstruction(_IsStatic ? OpCodes.Call : OpCodes.Callvirt, OriginalMethod);
             yield return CreateCodeInstruction(OpCodes.Ret);
         }
         

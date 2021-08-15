@@ -15,6 +15,8 @@ namespace MemberForwarding
             if (FoundTypes.ContainsKey(key))
                 return FoundTypes[key];
             Type type = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetSafeTypes()).FirstOrDefault(t => t.FullName != null && t.FullName.Equals(fullName) && (String.IsNullOrEmpty(assemblyName) || t.Assembly.GetName().Name.Equals(assemblyName)));
+            if (type == null)
+                throw new TypeLoadException($"Type '{fullName}' could not be found");
             key = $"{type.Assembly.GetName().Name}:{fullName}";
             if(type != null && !FoundTypes.ContainsKey(key))
                 FoundTypes.Add(key, type);
@@ -36,5 +38,7 @@ namespace MemberForwarding
                 return new List<Type>();
             }
         }
+        
+        internal static bool IsStatic(this PropertyInfo property) => property.GetAccessors(true)[0].IsStatic;
     }
 }

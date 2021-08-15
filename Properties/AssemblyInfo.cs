@@ -4,11 +4,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("MemberForwarding")]
+[assembly: AssemblyTitle("MemberForwardingLib")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("MemberForwarding")]
+[assembly: AssemblyProduct("MemberForwardingLib")]
 [assembly: AssemblyCopyright("Copyright ©  2021")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("C1367B32-66BC-4B48-8C34-D12BF1AF68CC")]
+[assembly: Guid("98058C82-D006-4D5F-9859-4DC53A64E98F")]
 
 // Version information for an assembly consists of the following four values:
 //
