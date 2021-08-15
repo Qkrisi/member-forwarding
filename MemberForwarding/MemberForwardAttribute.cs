@@ -164,6 +164,8 @@ namespace MemberForwarding
 
             if (Getter != null)
             {
+                if (!CurrentVariable.Gettable)
+                    throw new MissingMethodException("The pointed property doesn't have a get accessor");
                 if(!Getter.ReturnType.IsAssignableFrom(CurrentVariable.VariableType))
                     throw new TargetException("Return type mismatch");
                 string key = $"{key1}{Getter.Name}";
@@ -178,6 +180,8 @@ namespace MemberForwarding
 
             if (Setter != null)
             {
+                if (!CurrentVariable.Settable)
+                    throw new MissingMethodException("The pointed property doesn't have a set accessor");
                 string key = $"{key1}{Setter.Name}";
                 if(!AccessorVariables.ContainsKey(key))
                     AccessorVariables.Add(key, CurrentVariable);
@@ -185,7 +189,7 @@ namespace MemberForwarding
                     AccessorAttributes.Add(key, this);
                 if(ObjectReference != null && !ObjectReferences.ContainsKey(key))
                     ObjectReferences.Add(key, ObjectReference);
-                TryPatch(HarmonyID, Getter, new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"));
+                TryPatch(HarmonyID, Setter, new HarmonyMethod(typeof(MemberForwardAttribute), "SetterTranspiler"));
             }
         }
 

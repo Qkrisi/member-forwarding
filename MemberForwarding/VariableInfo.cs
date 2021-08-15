@@ -22,9 +22,14 @@ namespace MemberForwarding
         private readonly FieldInfo Field;
         private readonly PropertyInfo Property;
 
+        private readonly MethodInfo Getter;
+        private readonly MethodInfo Setter;
+
         internal Type VariableType => Field?.FieldType ?? Property.PropertyType;
 
         internal bool IsStatic => Field?.IsStatic ?? Property.IsStatic();
+        internal bool Gettable => Field != null || Getter != null;
+        internal bool Settable => Field != null || Setter != null;
 
         internal object GetValue(object instance) => Field?.GetValue(instance) ?? Property?.GetValue(instance, null);
 
@@ -52,6 +57,11 @@ namespace MemberForwarding
                     throw new MissingVariableException($"Variable '{type.Name}.{name}' not found.");
                 if (Static && !IsStatic)
                     throw new MissingVariableException($"Static variable '{type.Name}.{name}' not found.");
+                if (Property != null)
+                {
+                    Getter = Property.GetGetMethod(true);
+                    Setter = Property.GetSetMethod(true);
+                }
                 VariableCache.Add(key, this);
             }
         }
