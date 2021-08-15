@@ -6,10 +6,25 @@ namespace MemberForwarding
 {
     public static class MemberForwardControls
     {
-        public static void ForwardTypes(string HarmonyID, params Type[] types) =>
-            MemberForwardAttribute.ForwardTypes(HarmonyID, types);
 
-        public static void ForwardAll(string HarmonyID) => ForwardTypes(HarmonyID,
-            new StackTrace().GetFrame(1).GetMethod().ReflectedType.Assembly.GetSafeTypes().ToArray());
+        private static void TryExecuteForwards(Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (TypeLoadException e)
+            {
+                throw e.Message.Contains("Could not load type 'MemberForwarding.MemberForwardAttribute'") ? new DllNotFoundException(
+                    "Failed to load member forwarding. Please make sure Harmony is installed! (https://github.com/pardeike/Harmony/releases)") : e;
+            }
+        }
+
+        public static void ForwardTypes(string HarmonyID, params Type[] types) => TryExecuteForwards(() => MemberForwardAttribute.ForwardTypes(HarmonyID, types));
+
+        public static void ForwardAll(string HarmonyID) =>
+            TryExecuteForwards(() =>
+                ForwardTypes(HarmonyID,
+                    new StackTrace().GetFrame(3).GetMethod().ReflectedType.Assembly.GetSafeTypes().ToArray()));
     }
 }

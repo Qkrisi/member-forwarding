@@ -332,15 +332,6 @@ namespace MemberForwarding
 
         internal static void ForwardTypes(string ID, Type[] types)
         {
-            try
-            {
-                var _ = AccessTools.all;
-            }
-            catch (DllNotFoundException)
-            {
-                throw new DllNotFoundException(
-                    "Please install Harmony in order to use member forwarding! (https://github.com/pardeike/Harmony/releases)");
-            }
             bool DefaultDebug = DebugMode;
             foreach (Type type in types)
             {
