@@ -152,6 +152,8 @@ namespace MemberForwarding
 
             if (Getter != null)
             {
+                if(!Getter.ReturnType.IsAssignableFrom(CurrentVariable.VariableType))
+                    throw new TargetException("Return type mismatch");
                 string key = $"{key1}{Getter.Name}";
                 if(!AccessorVariables.ContainsKey(key))
                     AccessorVariables.Add(key, CurrentVariable);

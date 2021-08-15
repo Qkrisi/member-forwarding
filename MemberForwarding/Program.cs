@@ -3,61 +3,42 @@ using System.Runtime.CompilerServices;
 
 namespace MemberForwarding
 {
-    internal class Program
+    class A {}
+
+    class B : A
     {
-        private bool ForwardMethod(out string str)
-        {
-            Console.WriteLine($"Called forwarded method: {str_inst}");
-            str = "yes";
-            return false;
-        }
-
-        private static Program Instance;
-
-        private string str_inst;
-
-        /*[MemberForward("MemberForwarding.Program", "ForwardMethod")]
-        [MethodImpl(MethodImplOptions.InternalCall)]
-        private static extern bool PatchMethod(object __instance, out string arg);*/
-
         private int ForwardField = 1;
 
-        [MemberForward("MemberForwarding.Program", "ForwardField")]
+        private void ForwardMethod()
+        {
+            Console.WriteLine("Called forwarded method");
+        }
+    }
+    class C : B {}
+    
+    internal class Program
+    {
+        private static A Instance;
+
+        [MemberForward(typeof(B), "ForwardMethod")]
+        [Debug]
+        [ObjectReference(typeof(Program), "Instance")]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void PatchMethod() { }
+
+        [MemberForward(typeof(B), "ForwardField")]
         [ObjectReference(typeof(Program), "Instance")]
         private static int PatchProperty
         {
-            [MethodImpl(MethodImplOptions.NoInlining)] get; 
-            [MethodImpl(MethodImplOptions.NoInlining)] set;
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            get;
         }
-
-        [MemberForward(typeof(Program), "ForwardField")]
-        [Debug]
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        static int FieldMethod(Program instance) => default;
-
-        [MemberForward(typeof(Program), "ForwardField")]
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        static void FieldSetMethod(Program instance, int value){}
-        
-        
 
         public static void Main(string[] args)
         {
-            Instance = new Program
-            {
-                str_inst =  "d"
-            }; 
-            //MemberForwardAttribute.DebugMode = true;
+            Instance = new B();
             MemberForwardControls.ForwardAll("demo");
-            //Console.WriteLine(PatchMethod(Instance, out string nice));
-            //Console.WriteLine(nice);
-            Console.WriteLine(PatchProperty);
-            PatchProperty = 2;
-            Console.WriteLine(PatchProperty);
-            Console.WriteLine(Instance.ForwardField);
-            Console.WriteLine(FieldMethod(Instance));
-            FieldSetMethod(Instance, 3);
-            Console.Write(FieldMethod(Instance));
+            PatchMethod();
         }
     }
 }
