@@ -48,6 +48,8 @@ namespace MemberForwarding
                 VariableInfo variable = VariableCache[key];
                 Field = variable.Field;
                 Property = variable.Property;
+                Getter = variable.Getter;
+                Setter = variable.Setter;
             }
             else
             {
