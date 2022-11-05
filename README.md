@@ -84,12 +84,12 @@ namespace MemberForwardingDemo
 		static Foo Instance;
 		
 		[MemberForward(typeof(Foo), "OriginalMethod")]
-		[ObjectReference(typeof(Program, "Instance"))]
+		[ObjectReference(typeof(Program), "Instance")]
 		[MethodImpl(MethodImplOptions.NoInlining)]
 		static bool ForwardMethod(int arg) => default;
 		
 		[MemberForward(typeof(Foo), "OriginalVariable")]
-		[ObjectReference(typeof(Program, "Instance"))]
+		[ObjectReference(typeof(Program), "Instance")]
 		static int ForwardVariable
 		{
 			[MethodImpl(MethodImplOptions.NoInlining)] get;
