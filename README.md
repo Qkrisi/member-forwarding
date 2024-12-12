@@ -59,7 +59,7 @@ namespace MemberForwardingDemo
 
 ### Object references
 
-To call instance methods, either add an `ObjectReference` attribute to your method that poitns to a static variable which will be used as an object reference, or add a parameter **called `__instance`** at the start of the method, if you're forwarding to a method or create getter and setter methods with instance variables if you're forwarding to a variable
+To call instance methods, either add an `ObjectReference` attribute to your method that points to a static variable which will be used as an object reference, or add a parameter **called `__instance`** at the start of the method, if you're forwarding to a method or create getter and setter methods with instance variables if you're forwarding to a variable
 
 The `ObjectReference` attribute has the same overloads as the `MemberForward` attribute.
 
